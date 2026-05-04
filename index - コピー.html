@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>TENJINCA デッキ構築（完全修正版）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; margin: 0; background: #f0f2f5; color: #333; padding-bottom: 50px; }
+    header { background: #d32f2f; color: white; padding: 15px; text-align: center; font-weight: bold; position: sticky; top: 0; z-index: 100; }
+    .container { max-width: 500px; margin: 0 auto; padding: 10px; }
+    
+    /* 検索フィルター */
+    .filters { background: white; padding: 12px; border-radius: 12px; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .filters input, .filters select { flex: 1 1 45%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9em; outline: none; }
+    
+    /* カードリスト */
+    .card-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-around; }
+    .card { background: white; width: 145px; padding: 10px; border-radius: 12px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.08); cursor: pointer; }
+    .card img { width: 110px; height: 110px; object-fit: cover; border-radius: 8px; background: #eee; }
+    .card-name { font-size: 0.9em; font-weight: bold; margin: 8px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .card-meta { font-size: 0.75em; color: #777; }
+
+    /* デッキエリア */
+    .deck-section { background: white; padding: 15px; border-radius: 12px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .deck-header { display: flex; justify-content: space-between; align-items: center; color: #d32f2f; border-bottom: 2px solid #f0f0f0; margin-bottom: 10px; padding-bottom: 5px; }
+    .deck-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; }
+    .deck-item { background: #fff5f5; border: 1px solid #ffcccc; padding: 6px 12px; border-radius: 20px; font-size: 0.85em; cursor: pointer; font-weight: bold; }
+
+    /* 保存結果表示エリア */
+    #resultArea { margin-top: 20px; text-align: center; background: #fff; padding: 15px; border-radius: 12px; display: none; }
+    #resultImage { width: 100%; border: 2px solid #ddd; border-radius: 8px; margin-top: 10px; }
+
+    /* 下部ボタン */
+    .footer-bar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); padding: 15px; box-shadow: 0 -3px 15px rgba(0,0,0,0.1); display: flex; gap: 10px; max-width: 500px; margin: 0 auto; z-index: 200; }
+    .btn { flex: 1; padding: 14px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: white; }
+    .btn-reset { background: #607d8b; }
+    .btn-download { background: #d32f2f; }
+  </style>
+</head>
+<body>
+
+<header>TENJINCA デッキ構築</header>
+
+<div class="container">
+  <div class="filters">
+    <input type="text" id="search" placeholder="カード名で検索" oninput="renderCards()">
+    <select id="f-attr" onchange="renderCards()">
+      <option value="">すべての属性</option>
+      <option value="炎">炎</option><option value="水">水</option><option value="木">木</option><option value="聖">聖</option><option value="原">原理</option><option value="Ｗ">Ｗカード</option>
+    </select>
+    <select id="f-rarity" onchange="renderCards()">
+      <option value="">すべてのレア度</option>
+      <option value="N">N</option><option value="R">R</option><option value="SR">SR</option><option value="MR">MR</option>
+    </select>
+    <select id="f-cost" onchange="renderCards()">
+      <option value="">すべてのコスト</option>
+      <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option>
+    </select>
+  </div>
+
+  <div class="card-list" id="cardList"></div>
+
+  <div class="deck-section">
+    <div class="deck-header">
+      <h2 style="margin:0; font-size:1.1em;">デッキ (<span id="deckCount">0</span>/20)</h2>
+      <div id="deckCost" style="font-size:0.9em; font-weight:bold;">Total: 0</div>
+    </div>
+    <div class="deck-list" id="deckList"></div>
+  </div>
+
+  <div id="resultArea">
+    <p style="font-size:0.8em; color:#d32f2f; font-weight:bold;">↓画像を長押し（または右クリック）で保存してください</p>
+    <img id="resultImage" src="" alt="完成デッキ画像">
+  </div>
+</div>
+
+<div class="footer-bar">
+  <button class="btn btn-reset" onclick="resetDeck()">リセット</button>
+  <button class="btn btn-download" onclick="exportImage()">画像作成・保存</button>
+</div>
+
+<script>
+  // --- カードデータ全75枚（修正済み） ---
+  const cardData = [
+    { id: 1, name: "アダム", attribute: "木" ,rarity:"N" , cost:1 , image: "card1.png" },
+    { id: 2, name: "エバ", attribute: "炎" ,rarity:"N", cost:2 , image: "card2.png" },
+    { id: 3, name: "カイン", attribute: "木" ,rarity:"R", cost:3 , image: "card3.png" },
+    { id: 4, name: "アベル", attribute: "炎" ,rarity:"R" , cost:3 ,image: "card4.png" },
+    { id: 5, name: "ノア", attribute: "水" ,rarity:"SR" , cost:4 ,image: "card5.png" },
+    { id: 6, name: "セム", attribute: "炎" ,rarity:"N" , cost:1 ,image: "card6.png" },
+    { id: 7, name: "ハム", attribute: "炎" ,rarity:"N" , cost:1 ,image: "card7.png" },
+    { id: 8, name: "ヤペテ", attribute: "炎" ,rarity:"N" , cost:1 ,image: "card8.png" },
+    { id: 9, name: "アブラム", attribute: "水" ,rarity:"R" , cost:2 ,image: "card9.png" },
+    { id: 10, name: "アブラハム", attribute: "水" ,rarity:"MR" , cost:6 ,image: "card10.png" },
+    { id: 11, name: "サライ", attribute: "木" ,rarity:"N" , cost:2 ,image: "card11.png" },
+    { id: 12, name: "イサク", attribute: "炎" ,rarity:"R" , cost:4 ,image: "card12.png" },
+    { id: 13, name: "エサウ", attribute: "木" ,rarity:"R" , cost:4 ,image: "card13.png" },
+    { id: 14, name: "ヤコブ", attribute: "水" ,rarity:"R" , cost:3 ,image: "card14.png" },
+    { id: 15, name: "イスラエル", attribute: "水" ,rarity:"MR" , cost:6 ,image: "card15.png" },
+    { id: 16, name: "ラケル", attribute: "木" ,rarity:"N" , cost:1 ,image: "card16.png" },
+    { id: 17, name: "ミカエル", attribute: "聖" ,rarity:"SR" , cost:5 ,image: "card17.png" },
+    { id: 18, name: "ガブリエル", attribute: "聖" ,rarity:"SR" , cost:4 ,image: "card18.png" },
+    { id: 19, name: "ケルビム", attribute: "聖" ,rarity:"R" , cost:2 ,image: "card19.png" },
+    { id: 20, name: "回る炎の剣", attribute: "聖",rarity:"R" , cost:3 ,image: "card20.png" },
+    { id: 21, name: "万有原力", attribute: "原",rarity:"SR" , cost:4 ,image: "card21.png" },
+    { id: 22, name: "生命の木", attribute: "原",rarity:"R" , cost:0 ,image: "card22.png" },
+    { id: 23, name: "ノアの箱舟", attribute: "原",rarity:"R" , cost:3 ,image: "card23.png" },
+    { id: 24, name: "ノアの大洪水", attribute: "原",rarity:"SR" , cost:4 ,image: "card24.png" },
+    { id: 25, name: "２１年苦役", attribute: "原",rarity:"R" , cost:0 ,image: "card25.png" },
+    { id: 26, name: "天使との組打ち", attribute: "原",rarity:"N" , cost:1 ,image: "card26.png" },
+    { id: 27, name: "授受作用", attribute: "Ｗ",rarity:"SR" , cost:3 ,image: "card27.png" },
+    { id: 28, name: "三大祝福", attribute: "Ｗ",rarity:"SR" , cost:3 ,image: "card28.png" },
+      ];
+
+  let deck = [];
+
+  // カード表示（検索・フィルタ）
+  function renderCards() {
+    const list = document.getElementById("cardList");
+    const sName = document.getElementById("search").value.toLowerCase();
+    const sAttr = document.getElementById("f-attr").value;
+    const sRare = document.getElementById("f-rarity").value;
+    const sCost = document.getElementById("f-cost").value;
+    
+    list.innerHTML = "";
+
+    const filtered = cardData.filter(c => {
+      return (c.name.toLowerCase().includes(sName)) &&
+             (sAttr === "" || c.attribute === sAttr) &&
+             (sRare === "" || c.rarity === sRare) &&
+             (sCost === "" || String(c.cost) === sCost);
+    });
+
+    filtered.forEach(c => {
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `
+        <img src="${c.image}" alt="">
+        <div class="card-name">${c.name}</div>
+        <div class="card-meta">${c.attribute} / ${c.rarity} / C:${c.cost}</div>
+      `;
+      div.onclick = () => addToDeck(c);
+      list.appendChild(div);
+    });
+  }
+
+  function addToDeck(card) {
+    if (deck.length >= 20) return alert("最大20枚までです");
+    const same = deck.filter(c => c.id === card.id).length;
+    if ((card.rarity === "SR" || card.rarity === "MR") && same >= 1) return alert("SR/MRは1枚制限です");
+    if (same >= 2) return alert("同名カードは2枚までです");
+    deck.push(card);
+    updateDeckView();
+  }
+
+  function updateDeckView() {
+    const list = document.getElementById("deckList");
+    document.getElementById("deckCount").textContent = deck.length;
+    document.getElementById("deckCost").textContent = "Total: " + deck.reduce((s,c)=>s+Number(c.cost),0);
+    list.innerHTML = "";
+    deck.forEach((c, i) => {
+      const item = document.createElement("div");
+      item.className = "deck-item";
+      item.textContent = `${c.name} (C${c.cost})`;
+      item.onclick = () => { deck.splice(i, 1); updateDeckView(); };
+      list.appendChild(item);
+    });
+  }
+
+  function resetDeck() { if(confirm("リセットしますか？")) { deck = []; updateDeckView(); document.getElementById("resultArea").style.display="none"; } }
+
+  // --- 【完全版】画像作成ロジック ---
+  async function exportImage() {
+    if (deck.length === 0) return alert("デッキが空です");
+    const btn = document.querySelector(".btn-download");
+    btn.textContent = "画像を作成中...";
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    
+    // レイアウト設定
+    const cardW = 160, cardH = 220, padding = 20, cols = 4;
+    const rows = Math.ceil(deck.length / cols);
+    canvas.width = cols * (cardW + padding) + padding;
+    canvas.height = rows * (cardH + padding) + padding + 100;
+
+    // 背景
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // タイトル
+    ctx.fillStyle = "#d32f2f";
+    ctx.font = "bold 26px sans-serif";
+    ctx.fillText("TENJINCA DECK LIST", padding, 50);
+    ctx.fillStyle = "#666";
+    ctx.font = "16px sans-serif";
+    const totalCost = deck.reduce((s,c)=> s + Number(c.cost), 0);
+    ctx.fillText(`枚数: ${deck.length} / 合計コスト: ${totalCost}`, padding, 85);
+
+    // 全画像をPromiseで一斉に読み込む
+    const loadImages = deck.map(c => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null); // 失敗しても止まらないように
+        img.src = c.image;
+      });
+    });
+
+    const loadedImgs = await Promise.all(loadImages);
+
+    // カードの描画
+    loadedImgs.forEach((img, i) => {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const x = padding + col * (cardW + padding);
+      const y = 120 + row * (cardH + padding);
+
+      // 画像本体
+      if (img) {
+        ctx.drawImage(img, x, y, cardW, cardW);
+      } else {
+        ctx.fillStyle = "#f0f0f0";
+        ctx.fillRect(x, y, cardW, cardW);
+        ctx.fillStyle = "#ccc";
+        ctx.fillText("No Image", x + 50, y + 80);
+      }
+
+      // 名前とコスト
+      ctx.fillStyle = "#000";
+      ctx.font = "bold 15px sans-serif";
+      ctx.fillText(deck[i].name, x, y + cardW + 25);
+      ctx.fillStyle = "#d32f2f";
+      ctx.font = "bold 13px sans-serif";
+      ctx.fillText(`Cost: ${deck[i].cost} / ${deck[i].rarity}`, x, y + cardW + 45);
+    });
+
+    // --- 保存処理の2段構え ---
+    try {
+      const dataUrl = canvas.toDataURL("image/png");
+      
+      // 1. 画面上に完成図を表示（長押し保存用）
+      const resultArea = document.getElementById("resultArea");
+      const resultImg = document.getElementById("resultImage");
+      resultImg.src = dataUrl;
+      resultArea.style.display = "block";
+      resultArea.scrollIntoView({behavior: 'smooth'});
+
+      // 2. 自動ダウンロードを試みる
+      const link = document.createElement("a");
+      link.download = `tenjinca_deck.png`;
+      link.href = dataUrl;
+      link.click();
+      
+      alert("画像を生成しました！下の画像エリアから保存できます。");
+    } catch (e) {
+      alert("ブラウザの制限により自動保存ができませんでした。画面下部の画像を長押しして保存してください。");
+    }
+    
+    btn.textContent = "画像作成・保存";
+  }
+
+  window.onload = renderCards;
+</script>
+
+</body>
+</html>
